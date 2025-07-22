@@ -206,6 +206,44 @@
             padding-bottom: 10px;
             border-bottom: 1px solid #dee2e6;
         }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .play-midi-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .play-midi-btn:hover {
+            background-color: #218838;
+        }
+        .play-midi-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .stop-midi-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+            display: none;
+        }
+        .stop-midi-btn:hover {
+            background-color: #c82333;
+        }
         .modal-title {
             margin: 0;
             color: #007bff;
@@ -349,6 +387,10 @@
             <div class="modal-header">
                 <h2 id="modalTitle" class="modal-title">Bass Line Tabs</h2>
                 <button class="close-btn" onclick="closeBassLineModal()">&times;</button>
+            </div>
+            <div id="modalActions" class="modal-actions" style="display: none;">
+                <button id="playMidiBtn" class="play-midi-btn" onclick="playMidi()">Play MIDI</button>
+                <button id="stopMidiBtn" class="stop-midi-btn" onclick="stopMidi()">Stop MIDI</button>
             </div>
             <div id="modalBody" class="modal-body">
                 <div class="loader">
@@ -589,14 +631,28 @@
                 .replace(/<p><br><\/p>/g, '<br>');
         }
         
+        // MIDI Playback Variables
+        let audioContext = null;
+        let currentMidiNotes = [];
+        let currentTrackId = null;
+        let isPlaying = false;
+        let playbackTimeouts = [];
+
         // Bass Line Modal Functions
         function generateBassLine(trackId, trackName, artistName) {
             const modal = document.getElementById('bassLineModal');
             const modalTitle = document.getElementById('modalTitle');
             const modalBody = document.getElementById('modalBody');
+            const modalActions = document.getElementById('modalActions');
+            
+            // Store current track ID for MIDI playback
+            currentTrackId = trackId;
             
             // Set modal title
             modalTitle.textContent = `Bass Line Tabs - ${trackName} by ${artistName}`;
+            
+            // Hide MIDI actions initially
+            modalActions.style.display = 'none';
             
             // Show loading state
             modalBody.innerHTML = `
@@ -623,6 +679,9 @@
                 }
                 const renderedContent = renderMarkdown(data.bassLineTabs);
                 modalBody.innerHTML = `<div>${renderedContent}</div>`;
+                
+                // Show MIDI actions after content is loaded
+                modalActions.style.display = 'flex';
             })
             .catch(error => {
                 console.error('Error generating bass line tabs:', error);
@@ -636,9 +695,169 @@
             });
         }
         
+        // MIDI Playback Functions
+        async function playMidi() {
+            if (isPlaying) return;
+            
+            const playBtn = document.getElementById('playMidiBtn');
+            const stopBtn = document.getElementById('stopMidiBtn');
+            
+            try {
+                playBtn.disabled = true;
+                playBtn.textContent = 'Loading MIDI...';
+                
+                // Initialize audio context if needed
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                // Resume audio context if suspended
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
+                // Fetch MIDI notes from backend
+                const response = await fetch(`/tracks/api/${currentTrackId}/midi-notes`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                currentMidiNotes = data.midiNotes;
+                const tempo = data.tempo || 120;
+                
+                if (currentMidiNotes.length === 0) {
+                    throw new Error('No MIDI notes generated');
+                }
+                
+                // Start playback
+                isPlaying = true;
+                playBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+                
+                playMidiSequence(currentMidiNotes, tempo);
+                
+            } catch (error) {
+                console.error('Error playing MIDI:', error);
+                alert('Error playing MIDI: ' + error.message);
+                
+                // Reset button states
+                playBtn.disabled = false;
+                playBtn.textContent = 'Play MIDI';
+                playBtn.style.display = 'inline-block';
+                stopBtn.style.display = 'none';
+                isPlaying = false;
+            }
+        }
+        
+        function stopMidi() {
+            if (!isPlaying) return;
+            
+            isPlaying = false;
+            
+            // Clear all scheduled timeouts
+            playbackTimeouts.forEach(timeout => clearTimeout(timeout));
+            playbackTimeouts = [];
+            
+            // Reset button states
+            const playBtn = document.getElementById('playMidiBtn');
+            const stopBtn = document.getElementById('stopMidiBtn');
+            
+            playBtn.disabled = false;
+            playBtn.textContent = 'Play MIDI';
+            playBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+        }
+        
+        function playMidiSequence(notes, tempo) {
+            const beatDuration = 60000 / tempo; // milliseconds per beat
+            
+            notes.forEach(note => {
+                const delay = note.startTime * beatDuration;
+                const duration = note.duration * beatDuration;
+                
+                const timeout = setTimeout(() => {
+                    if (isPlaying) {
+                        playNote(note.note, note.octave, duration / 1000); // convert to seconds
+                    }
+                }, delay);
+                
+                playbackTimeouts.push(timeout);
+            });
+            
+            // Schedule stop after the last note
+            const lastNote = notes.reduce((latest, note) => 
+                (note.startTime + note.duration) > (latest.startTime + latest.duration) ? note : latest
+            );
+            const totalDuration = (lastNote.startTime + lastNote.duration) * beatDuration;
+            
+            const stopTimeout = setTimeout(() => {
+                if (isPlaying) {
+                    stopMidi();
+                }
+            }, totalDuration + 500); // Add small buffer
+            
+            playbackTimeouts.push(stopTimeout);
+        }
+        
+        function playNote(noteName, octave, duration) {
+            if (!audioContext || !isPlaying) return;
+            
+            const frequency = noteToFrequency(noteName, octave);
+            
+            // Create oscillator for the note
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // Set up bass-like sound
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            
+            // Set up envelope (attack, decay, sustain, release)
+            const now = audioContext.currentTime;
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(0.3, now + 0.01); // attack
+            gainNode.gain.exponentialRampToValueAtTime(0.2, now + 0.1); // decay
+            gainNode.gain.setValueAtTime(0.2, now + duration - 0.1); // sustain
+            gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration); // release
+            
+            oscillator.start(now);
+            oscillator.stop(now + duration);
+        }
+        
+        function noteToFrequency(noteName, octave) {
+            const noteFrequencies = {
+                'C': 16.35, 'C#': 17.32, 'D': 18.35, 'D#': 19.45,
+                'E': 20.60, 'F': 21.83, 'F#': 23.12, 'G': 24.50,
+                'G#': 25.96, 'A': 27.50, 'A#': 29.14, 'B': 30.87
+            };
+            
+            const baseFreq = noteFrequencies[noteName] || noteFrequencies['E'];
+            return baseFreq * Math.pow(2, octave);
+        }
+
         function closeBassLineModal() {
             const modal = document.getElementById('bassLineModal');
             modal.classList.remove('show');
+            
+            // Stop MIDI playback if playing
+            if (isPlaying) {
+                stopMidi();
+            }
         }
         
         // Close modal when clicking outside of it

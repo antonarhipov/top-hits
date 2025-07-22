@@ -168,11 +168,63 @@ class TrackController(
         }
     }
 
+    @PostMapping("/api/{id}/midi-notes")
+    @ResponseBody
+    fun extractMidiNotes(@PathVariable id: Long): ResponseEntity<MidiNotesResponse> {
+        logger.info("Extracting MIDI notes from cached tablature for track ID: $id")
+        
+        return try {
+            val track = trackService.getTrackById(id) ?: return ResponseEntity.notFound().build()
+
+            // Use the new tablature parsing function instead of LLM call
+            val midiNotes = bassLineService.extractNotesFromCachedTablature(track)
+//            midiNotes.forEach { println(it) }
+            val tempo = track.bpm ?: 120 // Use track BPM or default to 120
+            
+            val response = MidiNotesResponse(
+                trackId = id,
+                trackName = track.trackName,
+                artistName = track.artistName,
+                midiNotes = midiNotes,
+                tempo = tempo
+            )
+            
+            ResponseEntity.ok(response)
+        } catch (e: Exception) {
+            logger.error("Error extracting MIDI notes from cached tablature for track ID: $id", e)
+            ResponseEntity.internalServerError().body(
+                MidiNotesResponse(
+                    trackId = id,
+                    trackName = "",
+                    artistName = "",
+                    midiNotes = emptyList(),
+                    error = e.message
+                )
+            )
+        }
+    }
+
     data class BassLineResponse(
         val trackId: Long,
         val trackName: String,
         val artistName: String,
         val bassLineTabs: String,
+        val error: String? = null
+    )
+
+    data class MidiNote(
+        val note: String,      // Note name (e.g., "C", "D#", "F")
+        val octave: Int,       // Octave number (e.g., 2, 3, 4)
+        val duration: Double,  // Duration in beats (e.g., 1.0 = quarter note, 0.5 = eighth note)
+        val startTime: Double  // Start time in beats from beginning
+    )
+
+    data class MidiNotesResponse(
+        val trackId: Long,
+        val trackName: String,
+        val artistName: String,
+        val midiNotes: List<MidiNote>,
+        val tempo: Int = 120,  // BPM for playback
         val error: String? = null
     )
 
