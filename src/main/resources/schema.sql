@@ -31,3 +31,19 @@ CREATE TABLE IF NOT EXISTS tracks (
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_track_name ON tracks (track_name);
 CREATE INDEX IF NOT EXISTS idx_artist_name ON tracks (artist_name);
+
+-- Drop existing bass_line_cache table if it exists (for schema migration)
+DROP TABLE IF EXISTS bass_line_cache;
+
+-- Bass line cache table for storing generated bass line tabs
+CREATE TABLE bass_line_cache (
+    id BIGSERIAL PRIMARY KEY,
+    artist_name VARCHAR(500) NOT NULL,
+    track_name VARCHAR(500) NOT NULL,
+    bass_line_content TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index for efficient cache lookups using artist name + track name
+CREATE UNIQUE INDEX idx_bass_line_cache_artist_track ON bass_line_cache (artist_name, track_name);

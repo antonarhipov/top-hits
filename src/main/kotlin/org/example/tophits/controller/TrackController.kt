@@ -143,11 +143,8 @@ class TrackController(
         logger.info("Generating bass line tabs for track ID: $id")
         
         return try {
-            val track = trackService.getTrackById(id)
-            if (track == null) {
-                return ResponseEntity.notFound().build()
-            }
-            
+            val track = trackService.getTrackById(id) ?: return ResponseEntity.notFound().build()
+
             val bassLineTabs = bassLineService.generateBassLineTabs(track)
             val response = BassLineResponse(
                 trackId = id,

@@ -1,19 +1,33 @@
 package org.example.tophits.service
 
+import org.example.tophits.model.BassLineCache
 import org.example.tophits.model.Track
+import org.example.tophits.repository.BassLineCacheRepository
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.stereotype.Service
+import java.time.LocalDateTime
 
 @Service
 class BassLineService(
-    private val chatClient: ChatClient
+    private val chatClient: ChatClient,
+    private val bassLineCacheRepository: BassLineCacheRepository
 ) {
     private val logger = LoggerFactory.getLogger(BassLineService::class.java)
 
     fun generateBassLineTabs(track: Track): String {
         logger.info("Generating bass line tabs for track: ${track.trackName} by ${track.artistName}")
         
+        // Check if we have cached results for this track using artist name + track name
+        val cachedResult = bassLineCacheRepository.findByArtistNameAndTrackName(track.artistName, track.trackName)
+        
+        if (cachedResult.isPresent) {
+            logger.info("Found cached bass line tabs for track: ${track.trackName} by ${track.artistName}")
+            return cachedResult.get().bassLineContent
+        }
+        
+        // No cached result found, generate new bass line tabs
+        logger.info("No cached result found, calling OpenAI API for track: ${track.trackName} by ${track.artistName}")
         val prompt = buildPrompt(track)
         
         return try {
@@ -22,8 +36,28 @@ class BassLineService(
                 .call()
                 .content()
             
+            val bassLineContent = response ?: "Sorry, I couldn't generate bass line tabs for this track."
+            
+            // Cache the successful result
+            if (response != null) {
+                try {
+                    val cacheEntry = BassLineCache(
+                        artistName = track.artistName,
+                        trackName = track.trackName,
+                        bassLineContent = bassLineContent,
+                        createdAt = LocalDateTime.now(),
+                        updatedAt = LocalDateTime.now()
+                    )
+                    bassLineCacheRepository.save(cacheEntry)
+                    logger.info("Successfully cached bass line tabs for track: ${track.trackName} by ${track.artistName}")
+                } catch (cacheException: Exception) {
+                    logger.warn("Failed to cache bass line tabs for track: ${track.trackName} by ${track.artistName}", cacheException)
+                    // Continue execution even if caching fails
+                }
+            }
+            
             logger.info("Successfully generated bass line tabs for track: ${track.trackName}")
-            response ?: "Sorry, I couldn't generate bass line tabs for this track."
+            bassLineContent
             
         } catch (e: Exception) {
             logger.error("Error generating bass line tabs for track: ${track.trackName}", e)
