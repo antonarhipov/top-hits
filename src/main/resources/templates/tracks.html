@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracks - Top Hits</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background-color: #007bff;
+            color: white;
+            padding: 20px 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+        }
+        .total-count {
+            margin-top: 10px;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        .search-container {
+            padding: 20px 30px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .search-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .search-type {
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            background-color: white;
+        }
+        .search-btn, .clear-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .search-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        .search-btn:hover {
+            background-color: #218838;
+        }
+        .clear-btn {
+            background-color: #6c757d;
+            color: white;
+        }
+        .clear-btn:hover {
+            background-color: #5a6268;
+        }
+        .tracks-container {
+            height: 600px;
+            overflow-y: auto;
+            padding: 0;
+        }
+        .track-item {
+            display: grid;
+            grid-template-columns: 1fr 1fr 100px 120px 100px;
+            gap: 15px;
+            padding: 15px 30px;
+            border-bottom: 1px solid #dee2e6;
+            align-items: center;
+        }
+        .track-item:hover {
+            background-color: #f8f9fa;
+        }
+        .track-header {
+            display: grid;
+            grid-template-columns: 1fr 1fr 100px 120px 100px;
+            gap: 15px;
+            padding: 15px 30px;
+            background-color: #e9ecef;
+            font-weight: bold;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .track-name {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .artist-name {
+            color: #6c757d;
+        }
+        .release-year {
+            text-align: center;
+            color: #495057;
+        }
+        .streams {
+            text-align: right;
+            color: #28a745;
+            font-weight: bold;
+        }
+        .spotify-playlists {
+            text-align: center;
+            color: #1db954;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            display: none;
+        }
+        .loading.show {
+            display: block;
+        }
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+            display: none;
+        }
+        .no-results.show {
+            display: block;
+        }
+        .error-message {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            margin: 20px 30px;
+            border-radius: 5px;
+            display: none;
+        }
+        .error-message.show {
+            display: block;
+        }
+        @media (max-width: 768px) {
+            .track-item, .track-header {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+            .search-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .search-input {
+                min-width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Music Tracks Database</h1>
+            <div class="total-count">
+                Total tracks: <span th:text="${totalCount}">0</span>
+            </div>
+        </div>
+        
+        <div class="search-container">
+            <div class="search-form">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search tracks or artists...">
+                <select id="searchType" class="search-type">
+                    <option value="track">Track Name</option>
+                    <option value="artist">Artist Name</option>
+                </select>
+                <button id="searchBtn" class="search-btn">Search</button>
+                <button id="clearBtn" class="clear-btn">Clear</button>
+            </div>
+        </div>
+        
+        <div class="tracks-container" id="tracksContainer">
+            <div class="track-header">
+                <div>Track Name</div>
+                <div>Artist</div>
+                <div>Year</div>
+                <div>Streams</div>
+                <div>Spotify Lists</div>
+            </div>
+            <div id="tracksList"></div>
+            <div class="loading" id="loading">Loading more tracks...</div>
+            <div class="no-results" id="noResults">No tracks found.</div>
+            <div class="error-message" id="errorMessage"></div>
+        </div>
+    </div>
+
+    <script>
+        class TracksLoader {
+            constructor() {
+                this.currentPage = 0;
+                this.pageSize = 20;
+                this.isLoading = false;
+                this.hasMoreData = true;
+                this.currentSearch = '';
+                this.currentSearchType = 'track';
+                
+                this.initializeElements();
+                this.attachEventListeners();
+                this.loadInitialData();
+            }
+            
+            initializeElements() {
+                this.tracksContainer = document.getElementById('tracksContainer');
+                this.tracksList = document.getElementById('tracksList');
+                this.loading = document.getElementById('loading');
+                this.noResults = document.getElementById('noResults');
+                this.errorMessage = document.getElementById('errorMessage');
+                this.searchInput = document.getElementById('searchInput');
+                this.searchType = document.getElementById('searchType');
+                this.searchBtn = document.getElementById('searchBtn');
+                this.clearBtn = document.getElementById('clearBtn');
+            }
+            
+            attachEventListeners() {
+                // Infinite scroll
+                this.tracksContainer.addEventListener('scroll', () => {
+                    if (this.tracksContainer.scrollTop + this.tracksContainer.clientHeight >= 
+                        this.tracksContainer.scrollHeight - 100) {
+                        this.loadMoreTracks();
+                    }
+                });
+                
+                // Search functionality
+                this.searchBtn.addEventListener('click', () => this.performSearch());
+                this.clearBtn.addEventListener('click', () => this.clearSearch());
+                this.searchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.performSearch();
+                    }
+                });
+            }
+            
+            async loadInitialData() {
+                this.currentPage = 0;
+                this.hasMoreData = true;
+                this.tracksList.innerHTML = '';
+                await this.loadMoreTracks();
+            }
+            
+            async loadMoreTracks() {
+                if (this.isLoading || !this.hasMoreData) return;
+                
+                this.isLoading = true;
+                this.showLoading();
+                this.hideError();
+                
+                try {
+                    const url = this.buildApiUrl();
+                    const response = await fetch(url);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    if (data.tracks && data.tracks.length > 0) {
+                        this.renderTracks(data.tracks);
+                        this.currentPage++;
+                        this.hasMoreData = data.hasNext;
+                    } else if (this.currentPage === 0) {
+                        this.showNoResults();
+                    } else {
+                        this.hasMoreData = false;
+                    }
+                    
+                } catch (error) {
+                    console.error('Error loading tracks:', error);
+                    this.showError('Failed to load tracks: ' + error.message);
+                } finally {
+                    this.isLoading = false;
+                    this.hideLoading();
+                }
+            }
+            
+            buildApiUrl() {
+                const params = new URLSearchParams({
+                    page: this.currentPage,
+                    size: this.pageSize,
+                    sortBy: 'streams',
+                    sortDirection: 'desc'
+                });
+                
+                if (this.currentSearch) {
+                    params.append('search', this.currentSearch);
+                    params.append('searchType', this.currentSearchType);
+                }
+                
+                return `/tracks/api?${params.toString()}`;
+            }
+            
+            renderTracks(tracks) {
+                tracks.forEach(track => {
+                    const trackElement = this.createTrackElement(track);
+                    this.tracksList.appendChild(trackElement);
+                });
+                this.hideNoResults();
+            }
+            
+            createTrackElement(track) {
+                const div = document.createElement('div');
+                div.className = 'track-item';
+                div.innerHTML = `
+                    <div class="track-name">${this.escapeHtml(track.trackName)}</div>
+                    <div class="artist-name">${this.escapeHtml(track.artistName)}</div>
+                    <div class="release-year">${track.releasedYear}</div>
+                    <div class="streams">${this.formatNumber(track.streams)}</div>
+                    <div class="spotify-playlists">${this.formatNumber(track.inSpotifyPlaylists)}</div>
+                `;
+                return div;
+            }
+            
+            async performSearch() {
+                const query = this.searchInput.value.trim();
+                const searchType = this.searchType.value;
+                
+                this.currentSearch = query;
+                this.currentSearchType = searchType;
+                this.currentPage = 0;
+                this.hasMoreData = true;
+                this.tracksList.innerHTML = '';
+                
+                await this.loadMoreTracks();
+            }
+            
+            async clearSearch() {
+                this.searchInput.value = '';
+                this.currentSearch = '';
+                this.currentSearchType = 'track';
+                this.searchType.value = 'track';
+                
+                await this.loadInitialData();
+            }
+            
+            showLoading() {
+                this.loading.classList.add('show');
+            }
+            
+            hideLoading() {
+                this.loading.classList.remove('show');
+            }
+            
+            showNoResults() {
+                this.noResults.classList.add('show');
+            }
+            
+            hideNoResults() {
+                this.noResults.classList.remove('show');
+            }
+            
+            showError(message) {
+                this.errorMessage.textContent = message;
+                this.errorMessage.classList.add('show');
+            }
+            
+            hideError() {
+                this.errorMessage.classList.remove('show');
+            }
+            
+            formatNumber(num) {
+                if (num >= 1000000000) {
+                    return (num / 1000000000).toFixed(1) + 'B';
+                } else if (num >= 1000000) {
+                    return (num / 1000000).toFixed(1) + 'M';
+                } else if (num >= 1000) {
+                    return (num / 1000).toFixed(1) + 'K';
+                }
+                return num.toString();
+            }
+            
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+        
+        // Initialize the tracks loader when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new TracksLoader();
+        });
+    </script>
+</body>
+</html>

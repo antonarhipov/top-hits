@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Loading - Top Hits</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .file-list {
+            margin-bottom: 30px;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+        .file-name {
+            font-weight: bold;
+            color: #495057;
+        }
+        .load-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .load-btn:hover {
+            background-color: #0056b3;
+        }
+        .load-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .result.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .result.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .no-files {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 20px;
+        }
+        .error-details {
+            margin-top: 10px;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: rgba(0,0,0,0.05);
+            padding: 10px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CSV Data Loading</h1>
+        
+        <div class="file-list">
+            <div th:if="${#lists.isEmpty(csvFiles)}" class="no-files">
+                No CSV files found in the data folder.
+            </div>
+            
+            <div th:if="${not #lists.isEmpty(csvFiles)}">
+                <p>Select a CSV file to load into the database:</p>
+                <div th:each="file : ${csvFiles}" class="file-item">
+                    <span class="file-name" th:text="${file}">filename.csv</span>
+                    <button class="load-btn" th:data-filename="${file}" onclick="loadFile(this.dataset.filename)">Load</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <p>Loading data... Please wait.</p>
+            <div>This may take a few minutes for large files.</div>
+        </div>
+        
+        <div class="result" id="result">
+            <div id="result-message"></div>
+            <div id="error-details" class="error-details" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        function loadFile(fileName) {
+            // Disable all load buttons
+            const buttons = document.querySelectorAll('.load-btn');
+            buttons.forEach(btn => btn.disabled = true);
+            
+            // Show loading indicator
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            
+            // Make the API call
+            fetch(`/data/load/${encodeURIComponent(fileName)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading indicator
+                document.getElementById('loading').style.display = 'none';
+                
+                // Show result
+                const resultDiv = document.getElementById('result');
+                const messageDiv = document.getElementById('result-message');
+                const errorDetailsDiv = document.getElementById('error-details');
+                
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result ' + (data.success ? 'success' : 'error');
+                
+                if (data.success) {
+                    messageDiv.innerHTML = `
+                        <strong>Success!</strong> ${data.message}<br>
+                        Records loaded: ${data.successCount}<br>
+                        Errors: ${data.errorCount}
+                    `;
+                    
+                    if (data.errors && data.errors.length > 0) {
+                        errorDetailsDiv.style.display = 'block';
+                        errorDetailsDiv.innerHTML = '<strong>Error details:</strong><br>' + 
+                            data.errors.map(error => '• ' + error).join('<br>');
+                    } else {
+                        errorDetailsDiv.style.display = 'none';
+                    }
+                } else {
+                    messageDiv.innerHTML = `<strong>Error:</strong> ${data.message}`;
+                    
+                    if (data.errors && data.errors.length > 0) {
+                        errorDetailsDiv.style.display = 'block';
+                        errorDetailsDiv.innerHTML = '<strong>Error details:</strong><br>' + 
+                            data.errors.map(error => '• ' + error).join('<br>');
+                    } else {
+                        errorDetailsDiv.style.display = 'none';
+                    }
+                }
+                
+                // Re-enable buttons
+                buttons.forEach(btn => btn.disabled = false);
+            })
+            .catch(error => {
+                // Hide loading indicator
+                document.getElementById('loading').style.display = 'none';
+                
+                // Show error
+                const resultDiv = document.getElementById('result');
+                const messageDiv = document.getElementById('result-message');
+                
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                messageDiv.innerHTML = `<strong>Error:</strong> Failed to load file. ${error.message}`;
+                
+                // Re-enable buttons
+                buttons.forEach(btn => btn.disabled = false);
+            });
+        }
+    </script>
+</body>
+</html>
