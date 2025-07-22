@@ -87,7 +87,7 @@
         }
         .track-item {
             display: grid;
-            grid-template-columns: 1fr 1fr 100px 120px 100px;
+            grid-template-columns: 1fr 1fr 100px 120px 100px 120px;
             gap: 15px;
             padding: 15px 30px;
             border-bottom: 1px solid #dee2e6;
@@ -98,7 +98,7 @@
         }
         .track-header {
             display: grid;
-            grid-template-columns: 1fr 1fr 100px 120px 100px;
+            grid-template-columns: 1fr 1fr 100px 120px 100px 120px;
             gap: 15px;
             padding: 15px 30px;
             background-color: #e9ecef;
@@ -157,6 +157,140 @@
         .error-message.show {
             display: block;
         }
+        .bass-line-btn {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+        .bass-line-btn:hover {
+            background-color: #138496;
+        }
+        .bass-line-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal.show {
+            display: block;
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .modal-title {
+            margin: 0;
+            color: #007bff;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6c757d;
+        }
+        .close-btn:hover {
+            color: #000;
+        }
+        .modal-body {
+            line-height: 1.6;
+        }
+        .modal-body h1, .modal-body h2, .modal-body h3 {
+            color: #007bff;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        .modal-body h1 {
+            font-size: 1.5em;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .modal-body h2 {
+            font-size: 1.3em;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 3px;
+        }
+        .modal-body h3 {
+            font-size: 1.1em;
+        }
+        .modal-body pre {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+        .modal-body code {
+            background-color: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .modal-body pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        .modal-body ul, .modal-body ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .modal-body li {
+            margin: 5px 0;
+        }
+        .modal-body p {
+            margin: 10px 0;
+        }
+        .modal-body strong {
+            color: #495057;
+        }
+        .loader {
+            text-align: center;
+            padding: 40px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
         @media (max-width: 768px) {
             .track-item, .track-header {
                 grid-template-columns: 1fr;
@@ -200,11 +334,28 @@
                 <div>Year</div>
                 <div>Streams</div>
                 <div>Spotify Lists</div>
+                <div>Bass Line</div>
             </div>
             <div id="tracksList"></div>
             <div class="loading" id="loading">Loading more tracks...</div>
             <div class="no-results" id="noResults">No tracks found.</div>
             <div class="error-message" id="errorMessage"></div>
+        </div>
+    </div>
+
+    <!-- Bass Line Modal -->
+    <div id="bassLineModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle" class="modal-title">Bass Line Tabs</h2>
+                <button class="close-btn" onclick="closeBassLineModal()">&times;</button>
+            </div>
+            <div id="modalBody" class="modal-body">
+                <div class="loader">
+                    <div class="spinner"></div>
+                    <p>Generating bass line tabs...</p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -334,6 +485,7 @@
                     <div class="release-year">${track.releasedYear}</div>
                     <div class="streams">${this.formatNumber(track.streams)}</div>
                     <div class="spotify-playlists">${this.formatNumber(track.inSpotifyPlaylists)}</div>
+                    <div><button class="bass-line-btn" onclick="generateBassLine(${track.id}, '${this.escapeHtml(track.trackName)}', '${this.escapeHtml(track.artistName)}')">Bass Line</button></div>
                 `;
                 return div;
             }
@@ -403,6 +555,107 @@
             }
         }
         
+        // Simple Markdown Renderer
+        function renderMarkdown(text) {
+            return text
+                // Headers
+                .replace(/^#### (.*$)/gim, '<h4>$1</h4>')
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                // Bold
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                // Italic
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                // Code blocks
+                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                // Inline code
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                // Lists
+                .replace(/^\* (.*$)/gim, '<li>$1</li>')
+                .replace(/^(\d+)\. (.*$)/gim, '<li>$2</li>')
+                // Line breaks
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>')
+                // Wrap in paragraphs
+                .replace(/^(.*)$/gim, '<p>$1</p>')
+                // Clean up list items
+                .replace(/<p><li>/g, '<li>')
+                .replace(/<\/li><\/p>/g, '</li>')
+                // Wrap consecutive list items in ul
+                .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+                // Clean up empty paragraphs
+                .replace(/<p><\/p>/g, '')
+                .replace(/<p><br><\/p>/g, '<br>');
+        }
+        
+        // Bass Line Modal Functions
+        function generateBassLine(trackId, trackName, artistName) {
+            const modal = document.getElementById('bassLineModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            // Set modal title
+            modalTitle.textContent = `Bass Line Tabs - ${trackName} by ${artistName}`;
+            
+            // Show loading state
+            modalBody.innerHTML = `
+                <div class="loader">
+                    <div class="spinner"></div>
+                    <p>Generating bass line tabs...</p>
+                </div>
+            `;
+            
+            // Show modal
+            modal.classList.add('show');
+            
+            // Make API call
+            fetch(`/tracks/api/${trackId}/bass-line`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                const renderedContent = renderMarkdown(data.bassLineTabs);
+                modalBody.innerHTML = `<div>${renderedContent}</div>`;
+            })
+            .catch(error => {
+                console.error('Error generating bass line tabs:', error);
+                modalBody.innerHTML = `
+                    <div style="color: #dc3545; text-align: center; padding: 20px;">
+                        <p>Sorry, there was an error generating bass line tabs.</p>
+                        <p>${error.message}</p>
+                        <button class="bass-line-btn" onclick="generateBassLine(${trackId}, '${trackName}', '${artistName}')">Try Again</button>
+                    </div>
+                `;
+            });
+        }
+        
+        function closeBassLineModal() {
+            const modal = document.getElementById('bassLineModal');
+            modal.classList.remove('show');
+        }
+        
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('bassLineModal');
+            if (event.target === modal) {
+                closeBassLineModal();
+            }
+        }
+        
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeBassLineModal();
+            }
+        });
+
         // Initialize the tracks loader when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             new TracksLoader();

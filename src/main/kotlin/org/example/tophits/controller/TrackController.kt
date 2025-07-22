@@ -2,6 +2,7 @@ package org.example.tophits.controller
 
 import org.example.tophits.model.Track
 import org.example.tophits.service.TrackService
+import org.example.tophits.service.BassLineService
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.http.ResponseEntity
@@ -12,7 +13,8 @@ import org.springframework.web.bind.annotation.*
 @Controller
 @RequestMapping("/tracks")
 class TrackController(
-    private val trackService: TrackService
+    private val trackService: TrackService,
+    private val bassLineService: BassLineService
 ) {
     private val logger = LoggerFactory.getLogger(TrackController::class.java)
 
@@ -134,6 +136,48 @@ class TrackController(
             )
         }
     }
+
+    @PostMapping("/api/{id}/bass-line")
+    @ResponseBody
+    fun generateBassLineTabs(@PathVariable id: Long): ResponseEntity<BassLineResponse> {
+        logger.info("Generating bass line tabs for track ID: $id")
+        
+        return try {
+            val track = trackService.getTrackById(id)
+            if (track == null) {
+                return ResponseEntity.notFound().build()
+            }
+            
+            val bassLineTabs = bassLineService.generateBassLineTabs(track)
+            val response = BassLineResponse(
+                trackId = id,
+                trackName = track.trackName,
+                artistName = track.artistName,
+                bassLineTabs = bassLineTabs
+            )
+            
+            ResponseEntity.ok(response)
+        } catch (e: Exception) {
+            logger.error("Error generating bass line tabs for track ID: $id", e)
+            ResponseEntity.internalServerError().body(
+                BassLineResponse(
+                    trackId = id,
+                    trackName = "",
+                    artistName = "",
+                    bassLineTabs = "Sorry, there was an error generating bass line tabs. Please try again later.",
+                    error = e.message
+                )
+            )
+        }
+    }
+
+    data class BassLineResponse(
+        val trackId: Long,
+        val trackName: String,
+        val artistName: String,
+        val bassLineTabs: String,
+        val error: String? = null
+    )
 
     data class TracksResponse(
         val tracks: List<Track>,
